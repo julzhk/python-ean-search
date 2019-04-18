@@ -1,58 +1,51 @@
 """
 A Python class for EAN and ISBN name lookup and validation using the API on ean-search.org.
-
 To use it, you need an API access token from https://www.ean-search.org/ean-database-api.html
-
-Python 2.x or 3.x
+This version Python 3.6+ only
 """
 
-import sys
-import json
+import requests
 
 class EANSearch:
 
-	def __init__(self, token):
-		self.token = token;
+    def __init__(self, token, lang=1):
+        self.token = token
+        self.lang = lang
+        self.base_url = f"https://api.ean-search.org/api?token={self.token}&format=json&lang={self.lang}"
 
-	def barcodeLookup(self, ean, lang=1):
-		"""Lookup the product name for an EAN barcode"""
-		contents = self._urlopen("https://api.ean-search.org/api?token=" + self.token \
-			+ "&op=barcode-lookup&format=json&ean=" + ean + "&lang=" + str(lang)).read().decode("utf-8")
-		data = json.loads(contents)
-		if "error" in data[0]:
-			return None
-		else:
-			return data[0]["name"]
+    def do_json_request(self, url):
+        response = requests.get(url,
+                                headers={
+                                    'cache-control': "no-cache"
+                                })
+        data = response.json()
+        return data
 
-	def verifyChecksum(self, ean):
-		"""verify checksum of an EAN barcode"""
-		contents = self._urlopen("https://api.ean-search.org/api?token=" + self.token \
-			+ "&op=verify-checksum&format=json&ean=" + ean).read().decode("utf-8")
-		data = json.loads(contents)
-		if "error" in data[0]:
-			return None
-		else:
-			return data[0]["valid"]
+    def barcodeLookup(self, ean):
+        """Lookup the product name for an EAN barcode"""
+        data = self.do_json_request(f"{self.base_url}&op=barcode-lookup&ean={ean}")
+        if "error" in data[0]:
+            return None
+        else:
+            return data[0]["name"]
 
-	def productSearch(self, name, page=0):
-		"""search for a product name"""
-		contents = self._urlopen("https://api.ean-search.org/api?token=" + self.token \
-			+ "&op=product-search&format=json&name=" + name + "&page=" + str(page)).read().decode("utf-8")
-		data = json.loads(contents)
-		return data["productlist"]
 
-	def barcodePrefixSearch(self, prefix, page=0):
-		"""search for a prefix of EAN barcodes"""
-		contents = self._urlopen("https://api.ean-search.org/api?token=" + self.token \
-			+ "&op=barcode-prefix-search&format=json&prefix=" + prefix + "&page=" + str(page)).read().decode("utf-8")
-		data = json.loads(contents)
-		return data["productlist"]
+    def verifyChecksum(self, ean):
+        """verify checksum of an EAN barcode"""
+        data = self.do_json_request(f"{self.base_url}&op=verify-checksum&ean={ean}")
+        try:
+            return data[0]["valid"]
+        except (IndexError, KeyError):
+            return None
 
-	def _urlopen(self, url):
-         if (sys.version_info > (3, 0)):
-             import urllib.request
-             return urllib.request.urlopen(url)
-         else:
-             import urllib2
-             return urllib2.urlopen(url)
+    def productSearch(self, name, page=0):
+        """search for a product name"""
+        data = self.do_json_request(f"{self.base_url}&op=product-search&name={name}&page={page}")
+        return data["productlist"]
+
+    def barcodePrefixSearch(self, prefix, page=0):
+        """search for a prefix of EAN barcodes"""
+        data = self.do_json_request(f"{self.base_url}&op=barcode-prefix-search&prefix={prefix}&page={page}")
+        return data["productlist"]
+
 
